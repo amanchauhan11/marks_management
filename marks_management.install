@@ -1,0 +1,52 @@
+<?php
+
+function marks_management_install(){
+
+	$teacher_role = new StdClass();
+	$teacher_role->name = 'teacher';
+	user_role_save($teacher_role);
+	user_role_grant_permissions($teacher_role->rid, $permissions = array('access comments', 'post comments'));
+
+	$student_role = new StdClass();
+	$student_role->name = 'student';
+	user_role_save($student_role);
+	user_role_grant_permissions($student_role->rid, $permissions = array());
+
+	db_insert('student_marks')->fields(array('rollno'=>2016019, 'sub1'=>34, 'sub2'=>67, 'sub3'=>78, 'sub4'=> 2))->execute();
+	
+}
+
+function marks_management_uninstall(){
+
+	user_role_delete('teacher');
+	user_role_delete('student');
+	
+}
+
+function marks_management_schema() {
+
+	$schema['student_marks'] = array(
+	'description' => 'Student marks',
+	'fields' => array(
+		'rollno' => array(
+			'type' => 'int',
+			'not null' => TRUE,
+		),
+		'sub1' => array(
+			'type' => 'int',
+		),
+		'sub2' => array(
+			'type' => 'int',
+		),
+		'sub3' => array(
+			'type' => 'int',
+		),
+		'sub4' => array(
+			'type' => 'int',
+		),
+	),
+	'primary key' => array('rollno'),
+	);
+
+	return $schema;
+}

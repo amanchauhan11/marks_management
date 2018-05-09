@@ -1,0 +1,195 @@
+<?php
+
+function marks_management_menu() {
+
+    $items['update_marks_form'] = array( //this creates a URL that will call this form at "examples/form-example"
+      'title' => 'Update Marks', //page title
+      'page callback' => 'drupal_get_form', //this is the function that will be called when the page is accessed.  for a form, use drupal_get_form
+      'page arguments' => array('update_marks_form'), //put the name of the form here
+      'access callback' => TRUE
+    );
+
+    $items['view_marks'] = array(
+      'title' => 'View marks',
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('view_marks_form'), 
+      'access callback' => TRUE
+    );
+  return $items;
+}
+
+function view_marks_form($form, &$form_state) {  
+
+  $form['#prefix'] = '<div id="update_marks_form_wrapper">';
+  $form['#suffix'] = '</div>';
+  $state = isset($form_state['stage']) ? $form_state['stage'] : 'rollno'; 
+  switch ($state)
+  {
+    case 'rollno':  $form = get_rollno_form($form, $form_state);
+                      break;
+    case 'marks':   $form = get_marks_view($form, $form_state);
+                      break;
+  } 
+  return $form;
+}
+
+function get_marks_view($form, &$form_state){
+
+  $query = db_query("SELECT * FROM {student_marks} WHERE rollno = :r", array(':r'=>$form_state['values']['rollno']));
+  $records = $query->fetchAll();
+  $subs = array('rollno', 'sub1', 'sub2', 'sub3', 'sub4');
+  $response = '<table> <tr>';
+  foreach($subs as $sub)
+    $response = $response.'<th>'.$sub.'</th>';
+  $response = $response.'</tr>';
+
+  if(!sizeof($records))
+  {
+    drupal_set_message("Rollno not found");
+  }
+  else
+  {
+    $response = $response.'<tr>';
+    foreach($records[0] as $key => $value)
+      $response = $response.'<td>'.$value.'</td>';  
+    $response = $response.'</tr>';
+  }
+  $response = $response.'</table>';
+
+  $form['table'] = array(
+        '#type' => 'item',
+        '#markup' => $response, // use the submitted values
+  );
+  return $form;
+}
+
+function update_marks_form($form, &$form_state) {  
+
+  $teacher_role = user_role_load_by_name('teacher');
+  $form['#prefix'] = '<div id="update_marks_form_wrapper">';
+  $form['#suffix'] = '</div>';
+  if(user_has_role($teacher_role->rid))
+  {
+    $state = isset($form_state['stage']) ? $form_state['stage'] : 'rollno'; 
+    switch ($state)
+    {
+      case 'rollno':  $form = get_rollno_form($form, $form_state);
+                      break;
+      case 'marks':   $form = get_marks_form($form, $form_state);
+                      break;
+    }
+  }
+  else
+  {
+    $form['permission_denied'] = array(
+    '#markup' => '<p>You don\'t have required privileges</p>'
+    );
+  }  
+  return $form;
+}
+
+function get_rollno_form($form, &$form_state){
+
+    $form['rollno'] = array(
+      '#name' => 'rollno',
+      '#type' => 'textfield', //you can find a list of available types in the form api
+      '#title' => 'Roll no. of student',
+      '#required' => TRUE, //make this field required 
+    ); 
+
+   $form['actions']['update_marks_submit'] = array
+    (
+      '#type' => 'submit',
+      '#value' => t('Continue'),
+      // #validate is an array containing the validation handler(s) for any elements in this step of the form
+      // #submit is an array containing the submit handler(s) for this step of the form
+      '#submit' => array('get_rollno_submit'),
+      '#ajax' => array
+      (
+        // This is the #prefix we set on the form in the original form definition
+        'wrapper' => 'update_marks_form_wrapper',
+        // This is the ajax callback function we defined that will return our form
+        'callback' => 'update_marks_form_ajax_callback',
+      ),
+    );
+    return $form;
+}
+
+function get_rollno_submit($form, &$form_state){
+
+  $form_state['stage'] = 'marks';
+  $form_state['rebuild'] = TRUE;
+}
+
+function get_marks_form($form, &$form_state){
+
+  $rollno = $form_state['values']['rollno'];
+  $query = db_query("SELECT * FROM {student_marks} WHERE rollno = :r", array(':r'=>$rollno));
+  $records = $query->fetchAll();
+  if(sizeof($records))
+  {
+    foreach($records[0] as $key => $value)
+    {
+      $form[$key] = array(
+        '#name' => $key,
+        '#title' => $key,
+        '#type' => 'textfield',
+        '#default_value' => $value,
+        '#required' => TRUE,
+        );
+    }
+  }
+  else
+  {
+    $subs = array('rollno', 'sub1', 'sub2', 'sub3', 'sub4');
+    foreach($subs as $sub)
+    {
+      $form[$sub] = array(
+        '#name' => $sub,
+        '#title' => $sub,
+        '#type' => 'textfield',
+        '#required' => TRUE,
+        );
+    }
+  }
+  $form['actions']['update_marks_submit'] = array
+  (
+     '#type' => 'submit',
+     '#value' => t('Update'),
+     '#submit' => array('get_marks_form_submit'),
+  );
+  return $form;
+}
+
+function get_marks_form_submit($form, &$form_state) {
+
+
+  $response = array();
+  $fields = array('sub1', 'sub2', 'sub3', 'sub4');
+  foreach($fields as $key)
+    $response[$key] = $form_state['values'][$key];
+
+  $query = db_query("SELECT * FROM {student_marks} WHERE rollno = :r", array(':r'=>$form_state['values']['rollno']));
+  $records = $query->fetchAll();
+  if($records)
+  {
+    $num_updated = db_update('student_marks') // Table name no longer needs {}
+    ->fields($response)
+    ->condition('rollno', $form_state['values']['rollno'], '=')
+    ->execute(); 
+  }
+  else
+  {
+      $response['rollno'] = $form_state['values']['rollno'];
+      db_insert('student_marks')->fields($response)->execute();
+  }
+
+  drupal_set_message(t("Successfully updated"));
+  return $form;
+}
+
+function update_marks_form_ajax_callback($form, &$form_state){
+  return $form;
+}
+
+

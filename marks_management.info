@@ -1,0 +1,4 @@
+name = Marks management
+description = A database to store marks of each student
+core = 7.x
+package = My Modules
